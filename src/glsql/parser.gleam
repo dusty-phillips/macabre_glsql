@@ -15,6 +15,22 @@ const constraint_keywords = [
   "constraint", "foreign", "generated", "collate",
 ]
 
+/// Leading keywords of statements we deliberately ignore.
+const ignored_statements = [
+  "alter", "drop", "set", "comment", "grant", "revoke", "begin", "commit",
+  "insert", "update", "delete", "select", "truncate", "analyze", "vacuum",
+  "refresh", "reset", "with",
+]
+
+/// Second keyword of a `create ...` statement we deliberately ignore.
+const ignored_create_objects = [
+  "index", "unique", "extension", "sequence", "view", "schema", "function",
+  "trigger", "type", "domain", "materialized", "publication", "policy",
+  "aggregate", "operator", "role", "database",
+]
+
+const statement_keywords = ["create", "alter", "drop", "set", "comment"]
+
 pub fn parse(tokens: Tokens) -> Result(ast.SchemaAst, Error) {
   use tables <- result.try(parse_statements(tokens, []))
   Ok(ast.SchemaAst(tables: list.reverse(tables)))
@@ -27,10 +43,63 @@ fn parse_statements(
   case tokens {
     [] -> Ok(acc)
     [Positioned(token.Semicolon, _, _), ..rest] -> parse_statements(rest, acc)
-    _ -> {
-      use #(table, rest) <- result.try(parse_create_table(tokens))
-      parse_statements(rest, [table, ..acc])
-    }
+
+    [Positioned(token.Word(w), pos, _), ..rest] ->
+      case string.lowercase(w) {
+        "create" ->
+          case rest {
+            [Positioned(token.Word(obj), obj_pos, _), ..after] ->
+              case string.lowercase(obj) {
+                "table" -> {
+                  use #(table, rest) <- result.try(parse_create_table(tokens))
+                  parse_statements(rest, [table, ..acc])
+                }
+                other ->
+                  case list.contains(ignored_create_objects, other) {
+                    True -> parse_statements(skip_statement(after), acc)
+                    False ->
+                      Error(error.UnknownStatement(
+                        obj,
+                        obj_pos,
+                        suggest.closest(other, ["table", ..ignored_create_objects]),
+                      ))
+                  }
+              }
+            _ ->
+              Error(ParseError(
+                "Unexpected end of file after `create`",
+                pos,
+                None,
+              ))
+          }
+
+        other ->
+          case list.contains(ignored_statements, other) {
+            True -> parse_statements(skip_statement(rest), acc)
+            False ->
+              Error(error.UnknownStatement(
+                w,
+                pos,
+                suggest.closest(other, statement_keywords),
+              ))
+          }
+      }
+
+    [Positioned(t, pos, _), ..] ->
+      Error(ParseError(
+        "Expected a statement, found `" <> token.to_string(t) <> "`",
+        pos,
+        None,
+      ))
+  }
+}
+
+/// Consume tokens up to and including the next top-level `;`.
+fn skip_statement(tokens: Tokens) -> Tokens {
+  case tokens {
+    [] -> []
+    [Positioned(token.Semicolon, _, _), ..rest] -> rest
+    [_, ..rest] -> skip_statement(rest)
   }
 }
 
