@@ -4,10 +4,16 @@ import gleam/result
 import gleam/string
 import glsql/ast
 import glsql/error.{type Error, ParseError}
+import glsql/suggest
 import glsql/token.{type Positioned, Positioned}
 
 type Tokens =
   List(Positioned)
+
+const constraint_keywords = [
+  "not", "null", "primary", "unique", "default", "references", "check",
+  "constraint", "foreign", "generated", "collate",
+]
 
 pub fn parse(tokens: Tokens) -> Result(ast.SchemaAst, Error) {
   use tables <- result.try(parse_statements(tokens, []))
@@ -34,14 +40,14 @@ fn parse_create_table(tokens: Tokens) -> Result(#(ast.Table, Tokens), Error) {
   let rest = skip_if_not_exists(rest)
   use #(schema, name, rest) <- result.try(qualified_name(rest))
   use #(_, rest) <- result.try(expect(rest, token.LParen, "("))
-  use #(columns, rest) <- result.try(parse_column_list(rest, []))
+  use #(columns, constraints, rest) <- result.try(parse_column_list(rest, []))
   use #(_, rest) <- result.try(expect(rest, token.RParen, ")"))
   Ok(#(
     ast.Table(
       name: name,
       schema: schema,
       columns: list.reverse(columns),
-      constraints: [],
+      constraints: constraints,
       pos: pos,
     ),
     rest,
@@ -51,22 +57,246 @@ fn parse_create_table(tokens: Tokens) -> Result(#(ast.Table, Tokens), Error) {
 fn parse_column_list(
   tokens: Tokens,
   acc: List(ast.Column),
-) -> Result(#(List(ast.Column), Tokens), Error) {
-  use #(column, rest) <- result.try(parse_column(tokens))
-  case rest {
-    [Positioned(token.Comma, _, _), ..rest] ->
-      parse_column_list(rest, [column, ..acc])
-    _ -> Ok(#([column, ..acc], rest))
+) -> Result(#(List(ast.Column), List(ast.TableConstraint), Tokens), Error) {
+  case is_table_constraint(tokens) {
+    True -> {
+      use #(constraints, rest) <- result.try(parse_table_constraints(tokens, []))
+      Ok(#(acc, constraints, rest))
+    }
+    False -> {
+      use #(column, rest) <- result.try(parse_column(tokens))
+      case rest {
+        [Positioned(token.Comma, _, _), ..rest] ->
+          parse_column_list(rest, [column, ..acc])
+        _ -> Ok(#([column, ..acc], [], rest))
+      }
+    }
+  }
+}
+
+fn is_table_constraint(tokens: Tokens) -> Bool {
+  case tokens {
+    [Positioned(token.Word(w), _, _), ..] ->
+      case string.lowercase(w) {
+        "primary" | "unique" | "foreign" | "check" | "constraint" -> True
+        _ -> False
+      }
+    _ -> False
   }
 }
 
 fn parse_column(tokens: Tokens) -> Result(#(ast.Column, Tokens), Error) {
   use #(name, pos, rest) <- result.try(identifier(tokens))
   use #(sql_type, rest) <- result.try(parse_type(rest))
+  use #(constraints, rest) <- result.try(parse_column_constraints(rest, []))
   Ok(#(
-    ast.Column(name: name, sql_type: sql_type, constraints: [], pos: pos),
+    ast.Column(
+      name: name,
+      sql_type: sql_type,
+      constraints: list.reverse(constraints),
+      pos: pos,
+    ),
     rest,
   ))
+}
+
+fn parse_column_constraints(
+  tokens: Tokens,
+  acc: List(ast.ColumnConstraint),
+) -> Result(#(List(ast.ColumnConstraint), Tokens), Error) {
+  case tokens {
+    [Positioned(token.Comma, _, _), ..] -> Ok(#(acc, tokens))
+    [Positioned(token.RParen, _, _), ..] -> Ok(#(acc, tokens))
+    [] -> Ok(#(acc, tokens))
+
+    [Positioned(token.Word(w), pos, _), ..rest] ->
+      case string.lowercase(w) {
+        "not" -> {
+          use #(_, rest) <- result.try(keyword(rest, "null"))
+          parse_column_constraints(rest, [ast.NotNull(pos), ..acc])
+        }
+        "null" -> parse_column_constraints(rest, [ast.Nullable(pos), ..acc])
+        "primary" -> {
+          use #(_, rest) <- result.try(keyword(rest, "key"))
+          parse_column_constraints(rest, [ast.PrimaryKey(pos), ..acc])
+        }
+        "unique" -> parse_column_constraints(rest, [ast.Unique(pos), ..acc])
+        "default" -> {
+          let #(expr, rest) = take_expression(rest, "", 0)
+          parse_column_constraints(rest, [ast.Default(expr, pos), ..acc])
+        }
+        "check" -> {
+          let #(expr, rest) = take_expression(rest, "", 0)
+          parse_column_constraints(rest, [ast.Check(expr, pos), ..acc])
+        }
+        "references" -> {
+          use #(_schema, tbl, rest) <- result.try(qualified_name(rest))
+          use #(cols, rest) <- result.try(optional_column_list(rest))
+          parse_column_constraints(rest, [
+            ast.References(tbl, cols, pos),
+            ..acc
+          ])
+        }
+        other ->
+          Error(ParseError(
+            "Unknown column constraint `" <> w <> "`",
+            pos,
+            suggest.closest(other, constraint_keywords),
+          ))
+      }
+
+    [Positioned(t, pos, _), ..] ->
+      Error(ParseError(
+        "Unexpected `" <> token.to_string(t) <> "` in column definition",
+        pos,
+        None,
+      ))
+  }
+}
+
+fn parse_table_constraints(
+  tokens: Tokens,
+  acc: List(ast.TableConstraint),
+) -> Result(#(List(ast.TableConstraint), Tokens), Error) {
+  let tokens = skip_constraint_name(tokens)
+  case tokens {
+    [Positioned(token.Word(w), pos, _), ..rest] ->
+      case string.lowercase(w) {
+        "primary" -> {
+          use #(_, rest) <- result.try(keyword(rest, "key"))
+          use #(cols, rest) <- result.try(optional_column_list(rest))
+          continue_table_constraints(rest, [ast.TablePrimaryKey(cols, pos), ..acc])
+        }
+        "unique" -> {
+          use #(cols, rest) <- result.try(optional_column_list(rest))
+          continue_table_constraints(rest, [ast.TableUnique(cols, pos), ..acc])
+        }
+        "foreign" -> {
+          use #(_, rest) <- result.try(keyword(rest, "key"))
+          use #(cols, rest) <- result.try(optional_column_list(rest))
+          use #(_, rest) <- result.try(keyword(rest, "references"))
+          use #(_schema, tbl, rest) <- result.try(qualified_name(rest))
+          use #(ref, rest) <- result.try(optional_column_list(rest))
+          continue_table_constraints(rest, [
+            ast.TableForeignKey(cols, tbl, ref, pos),
+            ..acc
+          ])
+        }
+        "check" -> {
+          let #(expr, rest) = take_expression(rest, "", 0)
+          continue_table_constraints(rest, [ast.TableCheck(expr, pos), ..acc])
+        }
+        other ->
+          Error(ParseError(
+            "Unknown table constraint `" <> w <> "`",
+            pos,
+            suggest.closest(other, constraint_keywords),
+          ))
+      }
+    [Positioned(t, pos, _), ..] ->
+      Error(ParseError(
+        "Expected a table constraint, found `" <> token.to_string(t) <> "`",
+        pos,
+        None,
+      ))
+    [] -> Error(ParseError("Unexpected end of file in table constraints", 0, None))
+  }
+}
+
+fn continue_table_constraints(
+  tokens: Tokens,
+  acc: List(ast.TableConstraint),
+) -> Result(#(List(ast.TableConstraint), Tokens), Error) {
+  case tokens {
+    [Positioned(token.Comma, _, _), ..rest] ->
+      parse_table_constraints(rest, acc)
+    _ -> Ok(#(list.reverse(acc), tokens))
+  }
+}
+
+fn skip_constraint_name(tokens: Tokens) -> Tokens {
+  case tokens {
+    [Positioned(token.Word(w), _, _), ..rest] ->
+      case string.lowercase(w) {
+        "constraint" ->
+          case rest {
+            [Positioned(token.Word(_), _, _), ..rest] -> rest
+            [Positioned(token.QuotedIdent(_), _, _), ..rest] -> rest
+            _ -> rest
+          }
+        _ -> tokens
+      }
+    _ -> tokens
+  }
+}
+
+fn optional_column_list(
+  tokens: Tokens,
+) -> Result(#(List(String), Tokens), Error) {
+  case tokens {
+    [Positioned(token.LParen, _, _), ..rest] -> collect_names(rest, [])
+    _ -> Ok(#([], tokens))
+  }
+}
+
+fn collect_names(
+  tokens: Tokens,
+  acc: List(String),
+) -> Result(#(List(String), Tokens), Error) {
+  use #(name, _pos, rest) <- result.try(identifier(tokens))
+  case rest {
+    [Positioned(token.Comma, _, _), ..rest] -> collect_names(rest, [name, ..acc])
+    [Positioned(token.RParen, _, _), ..rest] ->
+      Ok(#(list.reverse([name, ..acc]), rest))
+    [Positioned(t, pos, _), ..] ->
+      Error(ParseError(
+        "Expected `,` or `)`, found `" <> token.to_string(t) <> "`",
+        pos,
+        None,
+      ))
+    [] -> Error(ParseError("Unexpected end of file in column list", 0, None))
+  }
+}
+
+/// Consume an expression to a balanced-paren boundary, stopping at a top-level
+/// comma or closing paren. Retained as opaque source text — never interpreted.
+fn take_expression(
+  tokens: Tokens,
+  acc: String,
+  depth: Int,
+) -> #(String, Tokens) {
+  case tokens {
+    [] -> #(string.trim(acc), [])
+    [Positioned(token.Comma, _, _), ..] if depth == 0 -> #(
+      string.trim(acc),
+      tokens,
+    )
+    [Positioned(token.RParen, _, _), ..] if depth == 0 -> #(
+      string.trim(acc),
+      tokens,
+    )
+    [Positioned(token.Word(w), _, _), ..rest] if depth == 0 -> {
+      case list.contains(constraint_keywords, string.lowercase(w)) {
+        True -> #(string.trim(acc), tokens)
+        False -> take_expression(rest, join(acc, w), depth)
+      }
+    }
+    [Positioned(token.LParen, _, _), ..rest] ->
+      take_expression(rest, acc <> "(", depth + 1)
+    [Positioned(token.RParen, _, _), ..rest] ->
+      take_expression(rest, acc <> ")", depth - 1)
+    [Positioned(token.Word(w), _, _), ..rest] ->
+      take_expression(rest, join(acc, w), depth)
+    [Positioned(t, _, _), ..rest] ->
+      take_expression(rest, acc <> token.to_string(t), depth)
+  }
+}
+
+fn join(acc: String, word: String) -> String {
+  case acc == "" || string.ends_with(acc, "(") {
+    True -> acc <> word
+    False -> acc <> " " <> word
+  }
 }
 
 fn parse_type(tokens: Tokens) -> Result(#(ast.SqlType, Tokens), Error) {
