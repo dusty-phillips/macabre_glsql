@@ -60,6 +60,24 @@ fn do_lex(
         Error(Nil) -> Error(LexError("Unterminated string literal", pos))
       }
 
+    ["$", ..] ->
+      case try_dollar_quote_open(chars, pos) {
+        Error(Nil) -> {
+          let #(text, rest, end) = take_while(chars, is_word_char, pos, "")
+          do_lex(rest, end, [Positioned(token.Word(text), pos, end), ..acc])
+        }
+        Ok(#(tag, body, body_pos)) ->
+          case scan_dollar_quote_body(body, tag, body_pos, "") {
+            Ok(#(text, rest, end)) ->
+              do_lex(rest, end, [
+                Positioned(token.StringLit(text), pos, end),
+                ..acc
+              ])
+            Error(Nil) ->
+              Error(LexError("Unterminated dollar-quoted string", pos))
+          }
+      }
+
     [c, ..rest] ->
       case is_digit(c) {
         True -> {
@@ -146,6 +164,60 @@ fn skip_block_comment(
     [] -> Error(LexError("Unterminated block comment", pos))
     ["*", "/", ..rest] -> Ok(#(rest, pos + 2))
     [_, ..rest] -> skip_block_comment(rest, pos + 1)
+  }
+}
+
+fn is_tag_char(c: String) -> Bool {
+  is_digit(c) || in_range(c, "a", "z") || in_range(c, "A", "Z") || c == "_"
+}
+
+fn try_dollar_quote_open(
+  chars: List(String),
+  pos: Int,
+) -> Result(#(String, List(String), Int), Nil) {
+  case chars {
+    ["$", ..rest] -> {
+      let #(tag, rest, tag_end) = take_while(rest, is_tag_char, pos + 1, "")
+      case rest {
+        ["$", ..rest] -> Ok(#(tag, rest, tag_end + 1))
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+fn scan_dollar_quote_body(
+  chars: List(String),
+  tag: String,
+  pos: Int,
+  acc: String,
+) -> Result(#(String, List(String), Int), Nil) {
+  let closer = string.to_graphemes("$" <> tag <> "$")
+  case chars {
+    [] -> Error(Nil)
+    _ ->
+      case starts_with_seq(chars, closer) {
+        True -> {
+          let closer_len = list.length(closer)
+          Ok(#(acc, list.drop(chars, closer_len), pos + closer_len))
+        }
+        False -> {
+          let assert [c, ..rest] = chars
+          scan_dollar_quote_body(rest, tag, pos + 1, acc <> c)
+        }
+      }
+  }
+}
+
+fn starts_with_seq(chars: List(String), seq: List(String)) -> Bool {
+  case seq {
+    [] -> True
+    [s, ..srest] ->
+      case chars {
+        [c, ..crest] -> c == s && starts_with_seq(crest, srest)
+        [] -> False
+      }
   }
 }
 

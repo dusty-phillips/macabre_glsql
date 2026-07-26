@@ -1,7 +1,7 @@
 import glsql/lexer
 import glsql/token.{
   type Positioned, Comma, LParen, Number, Positioned, QuotedIdent, RParen,
-  Semicolon, Word,
+  Semicolon, StringLit, Word,
 }
 
 pub fn lex_basic_test() {
@@ -71,4 +71,23 @@ pub fn lex_unterminated_quote_test() {
 
 pub fn lex_unterminated_block_comment_test() {
   let assert Error(_) = lexer.lex("create /* forever")
+}
+
+pub fn lex_dollar_quoted_string_test() {
+  let assert Ok([Positioned(t, _, _)]) = lexer.lex("$$abc$$")
+  assert t == StringLit("abc")
+}
+
+pub fn lex_dollar_quoted_with_tag_test() {
+  let assert Ok([Positioned(t, _, _)]) = lexer.lex("$tag$it's fine$tag$")
+  assert t == StringLit("it's fine")
+}
+
+pub fn lex_dollar_quoted_ignores_mismatched_tag_test() {
+  let assert Ok(tokens) = lexer.lex("$a$inner$b$still$a$")
+  assert echo_tokens(tokens) == [StringLit("inner$b$still")]
+}
+
+pub fn lex_unterminated_dollar_quote_test() {
+  let assert Error(_) = lexer.lex("$$abc")
 }
