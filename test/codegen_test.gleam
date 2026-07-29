@@ -51,7 +51,7 @@ pub fn generates_column_metadata_test() {
   let out = generate("create table users (id text primary key);")
   assert string.contains(
     out,
-    "pub const col_id: Column(String) =\n  Column(\"users\", \"id\", \"text\", False, True)",
+    "pub fn col_id() -> Column(String) {\n  Column(\"users\", \"id\", \"text\", False, True, decode.string)\n}",
   )
 }
 

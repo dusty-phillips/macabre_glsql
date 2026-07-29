@@ -154,17 +154,17 @@ fn encode_value(c: ResolvedColumn) -> String {
 
 fn metadata(table: ResolvedTable) -> String {
   table.columns
-  |> list.map(fn(c) { column_const(table, c) })
+  |> list.map(fn(c) { column_accessor(table, c) })
   |> string.join("\n\n")
   |> string.append("\n")
 }
 
-fn column_const(table: ResolvedTable, c: ResolvedColumn) -> String {
-  "pub const col_"
+fn column_accessor(table: ResolvedTable, c: ResolvedColumn) -> String {
+  "pub fn col_"
   <> c.field_name
-  <> ": Column("
+  <> "() -> Column("
   <> c.gleam_type
-  <> ") =\n  Column(\""
+  <> ") {\n  Column(\""
   <> table.sql_name
   <> "\", \""
   <> c.sql_name
@@ -174,7 +174,9 @@ fn column_const(table: ResolvedTable, c: ResolvedColumn) -> String {
   <> bool_literal(c.nullable)
   <> ", "
   <> bool_literal(c.primary_key)
-  <> ")"
+  <> ", "
+  <> c.decoder
+  <> ")\n}"
 }
 
 fn bool_literal(value: Bool) -> String {

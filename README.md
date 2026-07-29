@@ -143,6 +143,41 @@ pub fn main() {
 }
 ```
 
+## Partial selects
+
+The query above fetches every column, because `users.decoder()` expects a
+full `Users` record. When a query only needs a few columns, fetching the
+rest wastes bandwidth. Each generated `col_*()` function returns a `Column`
+carrying its own decoder, so you can write a smaller record and compose just
+the pieces you need instead of always selecting everything:
+
+```gleam
+import db/users
+import gleam/dynamic/decode
+import pog
+
+pub type UserPreview {
+  UserPreview(id: String, email: String)
+}
+
+fn user_preview_decoder() -> decode.Decoder(UserPreview) {
+  use id <- decode.field(0, users.col_id().decoder)
+  use email <- decode.field(1, users.col_email().decoder)
+  decode.success(UserPreview(id:, email:))
+}
+
+pub fn find_preview(db: pog.Connection, email: String) {
+  let query =
+    pog.query("select id, email from " <> users.table <> " where email = $1")
+    |> pog.parameter(pog.text(email))
+    |> pog.returning(user_preview_decoder())
+  pog.execute(query, db)
+}
+```
+
+The position passed to `decode.field` must match the order of columns in
+your `select` list, not their order in the schema.
+
 ## Configuration
 
 `glsql.toml` at the project root:

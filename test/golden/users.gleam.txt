@@ -35,11 +35,14 @@ pub fn to_params(row: Users) -> List(pog.Value) {
   ]
 }
 
-pub const col_id: Column(String) =
-  Column("users", "id", "uuid", False, True)
+pub fn col_id() -> Column(String) {
+  Column("users", "id", "uuid", False, True, decode.string)
+}
 
-pub const col_name: Column(String) =
-  Column("users", "name", "text", False, False)
+pub fn col_name() -> Column(String) {
+  Column("users", "name", "text", False, False, decode.string)
+}
 
-pub const col_bio: Column(Option(String)) =
-  Column("users", "bio", "text", True, False)
+pub fn col_bio() -> Column(Option(String)) {
+  Column("users", "bio", "text", True, False, decode.optional(decode.string))
+}
