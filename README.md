@@ -19,6 +19,14 @@ gleam add pog
 gleam add --dev glsql
 ```
 
+Date and time columns generate code that imports `gleam/time/timestamp` and
+`gleam/time/calendar`, so add `gleam_time` too if your schema has any. Gleam
+warns when a module comes from a package you do not depend on directly:
+
+```sh
+gleam add gleam_time
+```
+
 ## Quick start
 
 Write a schema:
@@ -188,16 +196,20 @@ out_dir = "src/db"           # defaults to "src/db"
 driver = "pog"               # defaults to "pog"
 
 # Override or add a type mapping. Built-in Postgres types already cover
-# text, varchar, int2/4/8, serial, bool, numeric, float4/8, date,
-# timestamp, timestamptz, json, jsonb, and bytea.
+# text, varchar, character varying, int2/4/8, serial, bool, numeric,
+# float4/8, date, time, timestamp, timestamptz, timestamp with/without
+# time zone, uuid, json, jsonb, tsvector, inet, and bytea.
 [types.timestamptz]
 gleam_type = "gleam/time/timestamp.Timestamp"
 decoder = "ts.decoder()"
 encoder = "pog.text(ts.to_rfc3339($))"
 
-# Rename a column whose name collides with a Gleam reserved word.
+# Rename a column whose name collides with a Gleam reserved word. A key with
+# no dot applies to that column in every table, which is usually what you
+# want for a reserved word. A "table.column" key overrides it for one table.
 [rename]
-"users.type" = "kind"
+type = "type_"
+"badges.type" = "badge_type"
 
 # Override the generated module or type name for a table.
 [tables.users]

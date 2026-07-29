@@ -121,11 +121,17 @@ fn resolve_column(
     False -> #(gleam_type, decoder)
   }
 
+  // A `table.column` rename wins over a bare `column` one, which applies to
+  // every table that has that column.
   let field_name = case
     dict.get(cfg.renames, table.name <> "." <> column.name)
   {
     Ok(new_name) -> new_name
-    Error(Nil) -> snake_case(column.name)
+    Error(Nil) ->
+      case dict.get(cfg.renames, column.name) {
+        Ok(new_name) -> new_name
+        Error(Nil) -> snake_case(column.name)
+      }
   }
 
   Ok(ResolvedColumn(

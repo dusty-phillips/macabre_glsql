@@ -135,25 +135,39 @@ fn empty_names(table: ast.Table) -> List(Error) {
 
 fn reserved_names(table: ast.Table, cfg: Config) -> List(Error) {
   list.filter_map(table.columns, fn(c) {
-    let key = table.name <> "." <> c.name
-    let renamed = dict.has_key(cfg.renames, key)
-    case list.contains(reserved_words, string.lowercase(c.name)) && !renamed {
+    case
+      list.contains(reserved_words, string.lowercase(c.name))
+      && !renamed(table, c, cfg)
+    {
       True ->
         Ok(ValidationError(
           "`"
             <> c.name
             <> "` is a reserved word in Gleam, so it cannot be a field name. "
-            <> "Add a rename to glsql.toml:\n\n    [rename]\n    \""
-            <> key
-            <> "\" = \""
+            <> "Add a rename to glsql.toml:\n\n    [rename]\n    "
             <> c.name
-            <> "_\"",
+            <> " = \""
+            <> c.name
+            <> "_\"\n\nThat covers every table with a `"
+            <> c.name
+            <> "` column. To rename it in one table only, use \""
+            <> table.name
+            <> "."
+            <> c.name
+            <> "\" as the key instead.",
           c.pos,
           None,
         ))
       False -> Error(Nil)
     }
   })
+}
+
+/// A rename key with no dot applies to the column in every table, so check
+/// both that and the `table.column` form.
+fn renamed(table: ast.Table, column: ast.Column, cfg: Config) -> Bool {
+  dict.has_key(cfg.renames, table.name <> "." <> column.name)
+  || dict.has_key(cfg.renames, column.name)
 }
 
 fn foreign_keys(table: ast.Table, schema: ast.SchemaAst) -> List(Error) {

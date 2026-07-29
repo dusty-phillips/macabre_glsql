@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/list
+import gleam/string
 import glsql/internal/config
 import glsql/internal/error
 import glsql/internal/lexer
@@ -60,6 +61,25 @@ pub fn reserved_word_with_rename_passes_test() {
       renames: dict.from_list([#("t.type", "kind")]),
     )
   let assert Ok(Nil) = validate.check(schema, cfg)
+}
+
+pub fn reserved_word_with_bare_rename_passes_test() {
+  let assert Ok(tokens) =
+    lexer.lex("create table a (type text); create table b (type text);")
+  let assert Ok(schema) = parser.parse(tokens)
+  let cfg =
+    config.Config(
+      ..config.default(),
+      renames: dict.from_list([#("type", "kind")]),
+    )
+  let assert Ok(Nil) = validate.check(schema, cfg)
+}
+
+pub fn reserved_word_error_suggests_the_bare_key_test() {
+  let assert Error([error.ValidationError(message, _, _)]) =
+    check("create table t (type text);")
+  assert string.contains(message, "type = \"type_\"")
+  assert string.contains(message, "\"t.type\"")
 }
 
 pub fn reports_all_errors_at_once_test() {
