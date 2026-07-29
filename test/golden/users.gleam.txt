@@ -31,7 +31,7 @@ pub fn to_params(row: Users) -> List(pog.Value) {
   [
     pog.text(row.id),
     pog.text(row.name),
-    pog.text(row.bio),
+    pog.nullable(fn(v) { pog.text(v) }, row.bio),
   ]
 }
 

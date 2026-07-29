@@ -6,13 +6,26 @@
 ```sh
 gleam add glsql@1
 ```
-```gleam
-import glsql
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
+## Usage
+
+Write your schema in a plain `.sql` file, then configure glsql:
+
+```toml
+# glsql.toml
+schema = "priv/schema.sql"
+out_dir = "src/db"
+driver = "pog"
 ```
+
+Generate:
+
+```sh
+gleam run -m glsql
+```
+
+glsql never connects to a database. It reads your schema file and nothing else,
+so generation works offline and in CI.
 
 Further documentation can be found at <https://hexdocs.pm/glsql>.
 

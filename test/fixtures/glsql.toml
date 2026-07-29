@@ -1,0 +1,8 @@
+schema = "test/fixtures/schema.sql"
+out_dir = "test/fixtures/generated"
+driver = "pog"
+
+[types.timestamptz]
+gleam_type = "String"
+decoder = "decode.string"
+encoder = "pog.text($)"

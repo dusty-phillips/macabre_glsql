@@ -119,9 +119,7 @@ fn decoder(table: ResolvedTable) -> String {
 fn encoder(table: ResolvedTable, driver: String) -> String {
   let values =
     table.columns
-    |> list.map(fn(c) {
-      "    " <> string.replace(c.encoder, "$", "row." <> c.field_name) <> ","
-    })
+    |> list.map(fn(c) { "    " <> encode_value(c) <> "," })
     |> string.join("\n")
 
   "pub fn to_params(row: "
@@ -131,6 +129,27 @@ fn encoder(table: ResolvedTable, driver: String) -> String {
   <> ".Value) {\n  [\n"
   <> values
   <> "\n  ]\n}\n"
+}
+
+fn encode_value(c: ResolvedColumn) -> String {
+  let is_list = string.contains(c.gleam_type, "List(")
+
+  let element = fn(var: String) -> String {
+    string.replace(c.encoder, "$", var)
+  }
+
+  let value = fn(var: String) -> String {
+    case is_list {
+      True -> "pog.array(fn(v) { " <> element("v") <> " }, " <> var <> ")"
+      False -> element(var)
+    }
+  }
+
+  case c.nullable {
+    True ->
+      "pog.nullable(fn(v) { " <> value("v") <> " }, row." <> c.field_name <> ")"
+    False -> value("row." <> c.field_name)
+  }
 }
 
 fn metadata(table: ResolvedTable) -> String {
