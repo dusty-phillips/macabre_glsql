@@ -6,7 +6,7 @@ import gleam/string
 import glsql/internal/ast
 import glsql/internal/config.{type Config}
 import glsql/internal/dialect/postgres
-import glsql/internal/error.{type Error, UnknownType}
+import glsql/internal/error.{type Error, UnknownType, UnmappedType}
 import glsql/internal/mapping.{type TypeMapping}
 import glsql/internal/suggest
 
@@ -158,11 +158,17 @@ fn lookup_type(
     Error(Nil) ->
       case dict.get(builtins, name) {
         Ok(m) -> Ok(m)
-        Error(Nil) -> {
-          let candidates =
-            list.append(dict.keys(builtins), dict.keys(cfg.types))
-          Error(UnknownType(name, pos, suggest.closest(name, candidates)))
-        }
+        Error(Nil) ->
+          case list.contains(postgres.unmapped_types, name) {
+            // A real Postgres type with no mapping, so say how to add one
+            // rather than offering a near-miss name.
+            True -> Error(UnmappedType(name, pos))
+            False -> {
+              let candidates =
+                list.append(dict.keys(builtins), dict.keys(cfg.types))
+              Error(UnknownType(name, pos, suggest.closest(name, candidates)))
+            }
+          }
       }
   }
 }

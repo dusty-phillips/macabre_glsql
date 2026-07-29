@@ -68,6 +68,41 @@ pub fn unknown_type_suggests_close_match_test() {
   assert hint == option.Some("text")
 }
 
+pub fn range_type_reports_how_to_map_it_test() {
+  let assert Error([error.UnmappedType(name, _)]) =
+    default_run("create table t (stay daterange);")
+  assert name == "daterange"
+}
+
+pub fn unmapped_type_gets_no_did_you_mean_hint_test() {
+  // `interval` is close to nothing useful, and suggesting a near-miss name
+  // would send people down the wrong path.
+  let assert Error([error.UnmappedType(_, _)]) =
+    default_run("create table t (span interval);")
+}
+
+pub fn unmapped_type_can_be_mapped_from_config_test() {
+  let cfg =
+    config.Config(
+      ..config.default(),
+      types: dict.from_list([
+        #(
+          "daterange",
+          mapping.TypeMapping(
+            gleam_type: "String",
+            decoder: "decode.string",
+            encoder: "pog.text($)",
+            imports: [],
+          ),
+        ),
+      ]),
+    )
+  let assert Ok(r) = run("create table t (stay daterange not null);", cfg)
+  let assert [table] = r.tables
+  let assert [col] = table.columns
+  assert col.gleam_type == "String"
+}
+
 pub fn custom_type_from_config_test() {
   let cfg =
     config.Config(

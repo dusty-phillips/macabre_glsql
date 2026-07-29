@@ -1,6 +1,18 @@
 import gleam/dict.{type Dict}
 import glsql/internal/mapping.{type TypeMapping, TypeMapping}
 
+/// Postgres types that pog has no decoder for, so glsql cannot pick a Gleam
+/// type on its own. Using one needs a `[types]` entry in glsql.toml. They are
+/// listed so the error can say that, instead of guessing at a near-miss name.
+pub const unmapped_types = [
+  "int4range", "int8range", "numrange", "tsrange", "tstzrange", "daterange",
+  "int4multirange", "int8multirange", "nummultirange", "tsmultirange",
+  "tstzmultirange", "datemultirange", "interval", "timetz",
+  "time with time zone", "money", "xml", "bit", "bit varying", "point", "line",
+  "lseg", "box", "path", "polygon", "circle", "hstore", "ltree", "tsquery",
+  "macaddr8",
+]
+
 pub fn builtin_types() -> Dict(String, TypeMapping) {
   dict.from_list([
     #("text", text()),

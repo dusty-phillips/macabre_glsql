@@ -8,6 +8,7 @@ pub type Error {
   ParseError(message: String, pos: Int, hint: Option(String))
   UnknownStatement(word: String, pos: Int, hint: Option(String))
   UnknownType(name: String, pos: Int, hint: Option(String))
+  UnmappedType(name: String, pos: Int)
   ValidationError(message: String, pos: Int, hint: Option(String))
   ConfigError(message: String, hint: Option(String))
   IoError(message: String)
@@ -77,6 +78,19 @@ fn parts(err: Error) -> #(String, String, Option(Int), Option(String)) {
       "I have no Gleam mapping for the SQL type `" <> n <> "`",
       Some(pos),
       hint,
+    )
+    UnmappedType(n, pos) -> #(
+      "Unsupported type",
+      "`"
+        <> n
+        <> "` is a Postgres type that pog has no decoder for, so there is no "
+        <> "built-in mapping for it. Add one to glsql.toml, using a Gleam type "
+        <> "that matches what the driver returns for this column:\n\n    [types."
+        <> n
+        <> "]\n    gleam_type = \"String\"\n    decoder = \"decode.string\"\n"
+        <> "    encoder = \"pog.text($)\"",
+      Some(pos),
+      None,
     )
     ValidationError(m, pos, hint) -> #("Invalid schema", m, Some(pos), hint)
     ConfigError(m, hint) -> #("Invalid configuration", m, None, hint)

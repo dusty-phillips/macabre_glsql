@@ -220,6 +220,33 @@ type = "User"
 Unknown keys are rejected with a did-you-mean suggestion, so a typo like
 `out_dr` fails generation instead of silently writing to the wrong place.
 
+## Types that need a mapping
+
+Some Postgres types have no built-in mapping, because pog has no decoder that
+fits them. Generation stops with an `Unsupported type` error naming the column,
+and the fix is a `[types]` entry:
+
+- range and multirange types, such as `daterange` and `int8range`
+- `interval`
+- `time with time zone`, also written `timetz`
+- `money`, `xml`, `bit`, `bit varying`
+- geometric types, such as `point` and `polygon`
+- `hstore`, `ltree`, `tsquery`, `macaddr8`
+
+Postgres renders a range as text, so reading one as a `String` works:
+
+```toml
+[types.daterange]
+gleam_type = "String"
+decoder = "decode.string"
+encoder = "pog.text($)"
+```
+
+Pick whatever Gleam type matches what the driver returns for the column. The
+same applies to a domain or enum you define yourself: map it by its plain name,
+without the schema, so `public.mpaa_rating` is configured as
+`[types.mpaa_rating]`.
+
 ## Development
 
 ```sh
