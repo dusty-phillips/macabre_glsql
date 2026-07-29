@@ -11,9 +11,7 @@ fn parse(sql: String) -> Result(ast.SchemaAst, error.Error) {
 
 pub fn skips_create_index_test() {
   let assert Ok(ast.SchemaAst([table])) =
-    parse(
-      "create table t (a text); create index t_a_idx on t (a); ",
-    )
+    parse("create table t (a text); create index t_a_idx on t (a); ")
   assert table.name == "t"
 }
 
@@ -32,7 +30,9 @@ pub fn skips_set_and_comment_test() {
 
 pub fn skips_create_extension_test() {
   let assert Ok(ast.SchemaAst([_])) =
-    parse("create extension if not exists \"pgcrypto\"; create table t (a text);")
+    parse(
+      "create extension if not exists \"pgcrypto\"; create table t (a text);",
+    )
 }
 
 pub fn misspelled_create_is_error_test() {

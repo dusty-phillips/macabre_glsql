@@ -141,7 +141,11 @@ fn resolve_column(
   ))
 }
 
-fn lookup_type(name: String, pos: Int, cfg: Config) -> Result(TypeMapping, Error) {
+fn lookup_type(
+  name: String,
+  pos: Int,
+  cfg: Config,
+) -> Result(TypeMapping, Error) {
   let builtins = postgres.builtin_types()
   case dict.get(cfg.types, name) {
     Ok(m) -> Ok(m)
@@ -149,7 +153,8 @@ fn lookup_type(name: String, pos: Int, cfg: Config) -> Result(TypeMapping, Error
       case dict.get(builtins, name) {
         Ok(m) -> Ok(m)
         Error(Nil) -> {
-          let candidates = list.append(dict.keys(builtins), dict.keys(cfg.types))
+          let candidates =
+            list.append(dict.keys(builtins), dict.keys(cfg.types))
           Error(UnknownType(name, pos, suggest.closest(name, candidates)))
         }
       }

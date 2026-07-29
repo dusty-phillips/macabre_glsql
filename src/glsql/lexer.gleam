@@ -49,8 +49,7 @@ fn do_lex(
             Positioned(token.QuotedIdent(text), pos, end),
             ..acc
           ])
-        Error(Nil) ->
-          Error(LexError("Unterminated quoted identifier", pos))
+        Error(Nil) -> Error(LexError("Unterminated quoted identifier", pos))
       }
 
     ["'", ..rest] ->

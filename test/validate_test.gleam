@@ -32,8 +32,7 @@ pub fn two_primary_keys_test() {
 }
 
 pub fn missing_fk_table_test() {
-  let assert Error(_) =
-    check("create table t (a uuid references nope(id));")
+  let assert Error(_) = check("create table t (a uuid references nope(id));")
 }
 
 pub fn missing_fk_column_test() {
@@ -45,9 +44,7 @@ pub fn missing_fk_column_test() {
 
 pub fn valid_fk_passes_test() {
   let assert Ok(Nil) =
-    check(
-      "create table u (id uuid); create table t (a uuid references u(id));",
-    )
+    check("create table u (id uuid); create table t (a uuid references u(id));")
 }
 
 pub fn reserved_word_column_test() {

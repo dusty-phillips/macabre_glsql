@@ -39,7 +39,6 @@ pub fn render_omits_hint_when_absent_test() {
 }
 
 pub fn render_config_error_test() {
-  let out =
-    error.render(error.ConfigError("Bad key", None), "glsql.toml", "")
+  let out = error.render(error.ConfigError("Bad key", None), "glsql.toml", "")
   assert string.contains(out, "Bad key")
 }

@@ -61,7 +61,10 @@ fn parse_statements(
                       Error(error.UnknownStatement(
                         obj,
                         obj_pos,
-                        suggest.closest(other, ["table", ..ignored_create_objects]),
+                        suggest.closest(other, [
+                          "table",
+                          ..ignored_create_objects
+                        ]),
                       ))
                   }
               }
@@ -129,7 +132,9 @@ fn parse_column_list(
 ) -> Result(#(List(ast.Column), List(ast.TableConstraint), Tokens), Error) {
   case is_table_constraint(tokens) {
     True -> {
-      use #(constraints, rest) <- result.try(parse_table_constraints(tokens, []))
+      use #(constraints, rest) <- result.try(
+        parse_table_constraints(tokens, []),
+      )
       Ok(#(acc, constraints, rest))
     }
     False -> {
@@ -201,10 +206,7 @@ fn parse_column_constraints(
         "references" -> {
           use #(_schema, tbl, rest) <- result.try(qualified_name(rest))
           use #(cols, rest) <- result.try(optional_column_list(rest))
-          parse_column_constraints(rest, [
-            ast.References(tbl, cols, pos),
-            ..acc
-          ])
+          parse_column_constraints(rest, [ast.References(tbl, cols, pos), ..acc])
         }
         other ->
           Error(ParseError(
@@ -234,7 +236,10 @@ fn parse_table_constraints(
         "primary" -> {
           use #(_, rest) <- result.try(keyword(rest, "key"))
           use #(cols, rest) <- result.try(optional_column_list(rest))
-          continue_table_constraints(rest, [ast.TablePrimaryKey(cols, pos), ..acc])
+          continue_table_constraints(rest, [
+            ast.TablePrimaryKey(cols, pos),
+            ..acc
+          ])
         }
         "unique" -> {
           use #(cols, rest) <- result.try(optional_column_list(rest))
@@ -268,7 +273,8 @@ fn parse_table_constraints(
         pos,
         None,
       ))
-    [] -> Error(ParseError("Unexpected end of file in table constraints", 0, None))
+    [] ->
+      Error(ParseError("Unexpected end of file in table constraints", 0, None))
   }
 }
 
@@ -314,7 +320,8 @@ fn collect_names(
 ) -> Result(#(List(String), Tokens), Error) {
   use #(name, _pos, rest) <- result.try(identifier(tokens))
   case rest {
-    [Positioned(token.Comma, _, _), ..rest] -> collect_names(rest, [name, ..acc])
+    [Positioned(token.Comma, _, _), ..rest] ->
+      collect_names(rest, [name, ..acc])
     [Positioned(token.RParen, _, _), ..rest] ->
       Ok(#(list.reverse([name, ..acc]), rest))
     [Positioned(t, pos, _), ..] ->
@@ -401,11 +408,8 @@ fn collect_args(
 
 fn parse_array_dims(tokens: Tokens, count: Int) -> #(Int, Tokens) {
   case tokens {
-    [
-      Positioned(token.LBracket, _, _),
-      Positioned(token.RBracket, _, _),
-      ..rest
-    ] -> parse_array_dims(rest, count + 1)
+    [Positioned(token.LBracket, _, _), Positioned(token.RBracket, _, _), ..rest] ->
+      parse_array_dims(rest, count + 1)
     _ -> #(count, tokens)
   }
 }
@@ -418,11 +422,7 @@ fn skip_if_not_exists(tokens: Tokens) -> Tokens {
       Positioned(token.Word(c), _, _),
       ..rest
     ] ->
-      case
-        string.lowercase(a),
-        string.lowercase(b),
-        string.lowercase(c)
-      {
+      case string.lowercase(a), string.lowercase(b), string.lowercase(c) {
         "if", "not", "exists" -> rest
         _, _, _ -> tokens
       }

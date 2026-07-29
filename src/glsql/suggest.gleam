@@ -32,12 +32,7 @@ pub fn distance(a: String, b: String) -> Int {
   }
 }
 
-fn step_row(
-  b: List(String),
-  prev: List(Int),
-  ac: String,
-  i: Int,
-) -> List(Int) {
+fn step_row(b: List(String), prev: List(Int), ac: String, i: Int) -> List(Int) {
   let start = i + 1
   let #(row, _) =
     list.fold(b, #([start], prev), fn(state, bc) {
@@ -48,8 +43,7 @@ fn step_row(
             True -> 0
             False -> 1
           }
-          let best =
-            int.min(int.min(left + 1, up + 1), diag + cost)
+          let best = int.min(int.min(left + 1, up + 1), diag + cost)
           #([best, ..acc], [up, ..rest])
         }
         _, _ -> state

@@ -10,8 +10,7 @@ fn parse(sql: String) -> Result(ast.SchemaAst, error.Error) {
 }
 
 pub fn parse_single_column_test() {
-  let assert Ok(ast.SchemaAst([table])) =
-    parse("create table users (id text);")
+  let assert Ok(ast.SchemaAst([table])) = parse("create table users (id text);")
   assert table.name == "users"
   assert table.schema == None
   let assert [col] = table.columns
@@ -20,8 +19,7 @@ pub fn parse_single_column_test() {
 }
 
 pub fn parse_is_case_insensitive_test() {
-  let assert Ok(ast.SchemaAst([table])) =
-    parse("CREATE TABLE Users (Id TEXT);")
+  let assert Ok(ast.SchemaAst([table])) = parse("CREATE TABLE Users (Id TEXT);")
   assert table.name == "Users"
   let assert [col] = table.columns
   assert col.name == "Id"
@@ -78,8 +76,7 @@ pub fn parse_type_with_precision_test() {
 }
 
 pub fn parse_array_type_test() {
-  let assert Ok(ast.SchemaAst([table])) =
-    parse("create table t (tags text[]);")
+  let assert Ok(ast.SchemaAst([table])) = parse("create table t (tags text[]);")
   let assert [col] = table.columns
   assert col.sql_type.name == "text"
   assert col.sql_type.array_dims == 1

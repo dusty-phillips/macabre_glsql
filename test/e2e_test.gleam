@@ -7,14 +7,12 @@ pub fn generates_fixture_modules_test() {
   let assert Ok(count) = glsql.run("test/fixtures/glsql.toml")
   assert count == 2
 
-  let assert Ok(users) =
-    simplifile.read("test/fixtures/generated/users.gleam")
+  let assert Ok(users) = simplifile.read("test/fixtures/generated/users.gleam")
   assert string.contains(users, "pub type Users {")
   assert string.contains(users, "tags: List(String)")
   assert string.contains(users, "display_name: Option(String)")
 
-  let assert Ok(posts) =
-    simplifile.read("test/fixtures/generated/posts.gleam")
+  let assert Ok(posts) = simplifile.read("test/fixtures/generated/posts.gleam")
   assert string.contains(posts, "author_id: String")
 }
 

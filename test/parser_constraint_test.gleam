@@ -85,9 +85,7 @@ pub fn table_primary_key_test() {
 
 pub fn table_foreign_key_test() {
   let table =
-    parse_one(
-      "create table t (a uuid, foreign key (a) references users (id));",
-    )
+    parse_one("create table t (a uuid, foreign key (a) references users (id));")
   let assert [ast.TableForeignKey(cols, tbl, ref, _)] = table.constraints
   assert cols == ["a"]
   assert tbl == "users"

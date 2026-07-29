@@ -34,8 +34,7 @@ pub fn lex_preserves_case_test() {
 
 pub fn lex_whitespace_kinds_test() {
   let assert Ok(tokens) = lexer.lex("  create\n\ttable\r\nusers ")
-  assert echo_tokens(tokens)
-    == [Word("create"), Word("table"), Word("users")]
+  assert echo_tokens(tokens) == [Word("create"), Word("table"), Word("users")]
 }
 
 pub fn lex_positions_test() {
