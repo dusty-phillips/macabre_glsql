@@ -1,8 +1,16 @@
 -module(glsql_ffi).
--export([check_project/0]).
+-export([check_project/0, format_check/1]).
 
 check_project() ->
-    Port = open_port({spawn, "gleam check"},
+    run("gleam check").
+
+%% Whether `gleam format` would leave the given directory alone. 0 means the
+%% files there are already formatted.
+format_check(Dir) ->
+    run("gleam format --check " ++ binary_to_list(Dir)).
+
+run(Command) ->
+    Port = open_port({spawn, Command},
                      [exit_status, stderr_to_stdout, binary]),
     collect(Port).
 

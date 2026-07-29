@@ -7,11 +7,7 @@ import glsql/schema.{type Column, Column}
 import pog
 
 pub type Users {
-  Users(
-    id: String,
-    name: String,
-    bio: Option(String),
-  )
+  Users(id: String, name: String, bio: Option(String))
 }
 
 pub const table: String = "users"

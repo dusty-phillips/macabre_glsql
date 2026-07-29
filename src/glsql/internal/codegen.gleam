@@ -58,19 +58,81 @@ fn imports(table: ResolvedTable, driver: String) -> String {
   |> string.append("\n")
 }
 
+/// The width `gleam format` wraps at.
+const max_width = 80
+
+/// Write a call the way `gleam format` would: on one line when it fits inside
+/// `max_width`, otherwise one argument per line with a trailing comma. Keeping
+/// to this means the generated files come out already formatted, so a project
+/// running `gleam format --check` over them stays green.
+fn call(
+  indent: String,
+  open: String,
+  args: List(String),
+  close: String,
+) -> String {
+  let one_line = indent <> open <> string.join(args, ", ") <> close
+  case string.length(one_line) <= max_width {
+    True -> one_line
+    False -> {
+      let lines =
+        args
+        |> list.map(fn(a) { indent <> "  " <> a <> "," })
+        |> string.join("\n")
+      indent <> open <> "\n" <> lines <> "\n" <> indent <> close
+    }
+  }
+}
+
 fn record(table: ResolvedTable) -> String {
   let fields =
-    table.columns
-    |> list.map(fn(c) { "    " <> c.field_name <> ": " <> c.gleam_type <> "," })
-    |> string.join("\n")
+    list.map(table.columns, fn(c) { c.field_name <> ": " <> c.gleam_type })
+  let one_line =
+    "  " <> table.type_name <> "(" <> string.join(fields, ", ") <> ")"
 
-  "pub type "
-  <> table.type_name
-  <> " {\n  "
-  <> table.type_name
-  <> "(\n"
-  <> fields
-  <> "\n  )\n}\n"
+  let body = case string.length(one_line) <= max_width {
+    True -> one_line
+    False -> {
+      let lines =
+        table.columns
+        |> list.map(record_field)
+        |> string.join("\n")
+      "  " <> table.type_name <> "(\n" <> lines <> "\n  )"
+    }
+  }
+
+  "pub type " <> table.type_name <> " {\n" <> body <> "\n}\n"
+}
+
+/// One field of the record, indented and with its trailing comma. A field too
+/// long for the line has the argument of its type broken out, which is what
+/// `gleam format` does with a long `Option(...)` or `List(...)`.
+fn record_field(c: ResolvedColumn) -> String {
+  // The trailing comma sits outside what is measured, as with the closing
+  // delimiters elsewhere.
+  let one_line = "    " <> c.field_name <> ": " <> c.gleam_type
+  case string.length(one_line) <= max_width {
+    True -> one_line <> ","
+    False ->
+      case string.split_once(c.gleam_type, "(") {
+        Ok(#(wrapper, rest)) ->
+          "    "
+          <> c.field_name
+          <> ": "
+          <> wrapper
+          <> "(\n      "
+          <> without_last_paren(rest)
+          <> ",\n    ),"
+        Error(Nil) -> one_line
+      }
+  }
+}
+
+fn without_last_paren(text: String) -> String {
+  case string.ends_with(text, ")") {
+    True -> string.slice(text, 0, string.length(text) - 1)
+    False -> text
+  }
 }
 
 fn constants(table: ResolvedTable) -> String {
@@ -90,65 +152,94 @@ fn decoder(table: ResolvedTable) -> String {
   let fields =
     table.columns
     |> list.index_map(fn(c, i) {
-      "  use "
-      <> c.field_name
-      <> " <- decode.field("
-      <> int.to_string(i)
-      <> ", "
-      <> c.decoder
-      <> ")"
+      call(
+        "  ",
+        "use " <> c.field_name <> " <- decode.field(",
+        [int.to_string(i), c.decoder],
+        ")",
+      )
     })
     |> string.join("\n")
 
-  let labels =
-    table.columns
-    |> list.map(fn(c) { c.field_name <> ":" })
-    |> string.join(", ")
+  let labels = list.map(table.columns, fn(c) { c.field_name <> ":" })
 
-  "pub fn decoder() -> decode.Decoder("
-  <> table.type_name
-  <> ") {\n"
+  call("", "pub fn decoder() -> decode.Decoder(", [table.type_name], ")")
+  <> " {\n"
   <> fields
-  <> "\n  decode.success("
-  <> table.type_name
-  <> "("
-  <> labels
-  <> "))\n}\n"
+  <> "\n"
+  // As with a function head, the outermost closing paren falls outside what
+  // is measured, so it goes on after.
+  <> call("  ", "decode.success(" <> table.type_name <> "(", labels, ")")
+  <> ")\n}\n"
 }
 
 fn encoder(table: ResolvedTable, driver: String) -> String {
   let values =
     table.columns
-    |> list.map(fn(c) { "    " <> encode_value(c) <> "," })
+    |> list.map(encode_value)
     |> string.join("\n")
 
-  "pub fn to_params(row: "
-  <> table.type_name
-  <> ") -> List("
-  <> driver
-  <> ".Value) {\n  [\n"
+  // Unlike a head with no arguments, this one is measured with its ` {`,
+  // since the argument list is what gets broken up.
+  call(
+    "",
+    "pub fn to_params(",
+    ["row: " <> table.type_name],
+    ") -> List(" <> driver <> ".Value) {",
+  )
+  <> "\n  [\n"
   <> values
   <> "\n  ]\n}\n"
 }
 
+/// The entry for one column in `to_params`, indented and with its trailing
+/// comma. Anything nested inside a lambda stays on one line, since that is
+/// short enough to fit whatever wraps around it.
 fn encode_value(c: ResolvedColumn) -> String {
   let is_list = string.contains(c.gleam_type, "List(")
-
-  let element = fn(var: String) -> String {
+  let substitute = fn(var: String) -> String {
     string.replace(c.encoder, "$", var)
   }
 
-  let value = fn(var: String) -> String {
+  let inline_value = fn(var: String) -> String {
     case is_list {
-      True -> "pog.array(fn(v) { " <> element("v") <> " }, " <> var <> ")"
-      False -> element(var)
+      True -> "pog.array(fn(v) { " <> substitute("v") <> " }, " <> var <> ")"
+      False -> substitute(var)
     }
   }
 
-  case c.nullable {
-    True ->
-      "pog.nullable(fn(v) { " <> value("v") <> " }, row." <> c.field_name <> ")"
-    False -> value("row." <> c.field_name)
+  let row = "row." <> c.field_name
+
+  let body = case c.nullable, is_list {
+    True, _ ->
+      call(
+        "    ",
+        "pog.nullable(",
+        ["fn(v) { " <> inline_value("v") <> " }", row],
+        ")",
+      )
+    False, True ->
+      call(
+        "    ",
+        "pog.array(",
+        ["fn(v) { " <> substitute("v") <> " }", row],
+        ")",
+      )
+    False, False -> {
+      let #(open, close) = split_encoder(c.encoder)
+      call("    ", open, [row], close)
+    }
+  }
+
+  body <> ","
+}
+
+/// An encoder from a type mapping carries a `$` where the value goes, so the
+/// text either side of it is what surrounds the argument.
+fn split_encoder(encoder: String) -> #(String, String) {
+  case string.split(encoder, "$") {
+    [before, after] -> #(before, after)
+    _ -> #(encoder, "")
   }
 }
 
@@ -160,23 +251,37 @@ fn metadata(table: ResolvedTable) -> String {
 }
 
 fn column_accessor(table: ResolvedTable, c: ResolvedColumn) -> String {
-  "pub fn col_"
-  <> c.field_name
-  <> "() -> Column("
-  <> c.gleam_type
-  <> ") {\n  Column(\""
-  <> table.sql_name
-  <> "\", \""
-  <> c.sql_name
-  <> "\", \""
-  <> c.sql_type_name
-  <> "\", "
-  <> bool_literal(c.nullable)
-  <> ", "
-  <> bool_literal(c.primary_key)
-  <> ", "
-  <> c.decoder
-  <> ")\n}"
+  // The ` {` that opens the body is appended after measuring, because a
+  // function head is laid out without it.
+  let signature =
+    call(
+      "",
+      "pub fn col_" <> c.field_name <> "() -> Column(",
+      [c.gleam_type],
+      ")",
+    )
+    <> " {"
+
+  let body =
+    call(
+      "  ",
+      "Column(",
+      [
+        quoted(table.sql_name),
+        quoted(c.sql_name),
+        quoted(c.sql_type_name),
+        bool_literal(c.nullable),
+        bool_literal(c.primary_key),
+        c.decoder,
+      ],
+      ")",
+    )
+
+  signature <> "\n" <> body <> "\n}"
+}
+
+fn quoted(value: String) -> String {
+  "\"" <> value <> "\""
 }
 
 fn bool_literal(value: Bool) -> String {

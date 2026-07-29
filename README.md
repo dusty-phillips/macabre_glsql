@@ -249,21 +249,16 @@ without the schema, so `public.mpaa_rating` is configured as
 
 ## Known limits
 
-A table can have at most 142 columns. Past that, the generated module does not
-compile: `gleam build` stops with a segmentation fault.
+Tables up to 142 columns work. Wider than that, the generated module does not
+compile.
 
-The cause is in the Gleam compiler, not in the generated code. `decoder()`
-writes one `use` per column, and the compiler runs out of stack somewhere above
-142 of them nested together. A hand written chain of 143 `use` expressions
-crashes it the same way, with no glsql involved. Raising the stack with `ulimit`
-or `RUST_MIN_STACK` does not move the limit.
+`decoder()` reads one column per `use` expression, and a chain of more than 142
+of them sits outside what compiles today. The same holds for a chain written by
+hand, so it comes with the shape of the code rather than with anything glsql
+does, and writing the decoder yourself nests just as deeply. `ulimit` and
+`RUST_MIN_STACK` make no difference to where the limit falls.
 
-If you have a table this wide, it needs splitting until the compiler is fixed.
-Writing the decoder out by hand does not help, because the closures nest just as
-deeply.
-
-For context on how rare this is: of the 1421 tables in gitlab's schema, one hit
-the limit.
+Splitting the table is the way around it for now.
 
 ## Development
 
