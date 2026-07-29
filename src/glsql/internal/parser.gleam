@@ -44,6 +44,10 @@ fn parse_statements(
     [] -> Ok(acc)
     [Positioned(token.Semicolon, _, _), ..rest] -> parse_statements(rest, acc)
 
+    // psql meta-commands such as `\c mydb` show up in dumps but are not SQL.
+    [Positioned(token.Symbol("\\"), _, _), ..rest] ->
+      parse_statements(skip_statement(rest), acc)
+
     [Positioned(token.Word(w), pos, _), ..rest] ->
       case string.lowercase(w) {
         "create" ->
@@ -114,6 +118,10 @@ fn parse_create_table(tokens: Tokens) -> Result(#(ast.Table, Tokens), Error) {
   use #(_, rest) <- result.try(expect(rest, token.LParen, "("))
   use #(columns, constraints, rest) <- result.try(parse_column_list(rest, []))
   use #(_, rest) <- result.try(expect(rest, token.RParen, ")"))
+  // Anything after the closing paren is a table option that does not affect
+  // the generated code, such as `PARTITION BY RANGE (...)`, `WITH (...)`,
+  // `INHERITS (...)` or `TABLESPACE ...`.
+  let rest = skip_statement(rest)
   Ok(#(
     ast.Table(
       name: name,
@@ -207,6 +215,19 @@ fn parse_column_constraints(
           use #(_schema, tbl, rest) <- result.try(qualified_name(rest))
           use #(cols, rest) <- result.try(optional_column_list(rest))
           parse_column_constraints(rest, [ast.References(tbl, cols, pos), ..acc])
+        }
+        // `GENERATED ALWAYS AS (expr) STORED` and the `AS IDENTITY` forms all
+        // mean the database supplies the value, same as a default.
+        "generated" -> {
+          let rest = skip_words(rest, ["always", "by", "default"])
+          use #(_, rest) <- result.try(keyword(rest, "as"))
+          let #(expr, rest) = generated_value(rest)
+          parse_column_constraints(rest, [ast.Default(expr, pos), ..acc])
+        }
+        // A collation does not change the Gleam type.
+        "collate" -> {
+          use #(_name, _, rest) <- result.try(identifier(rest))
+          parse_column_constraints(rest, acc)
         }
         other ->
           Error(ParseError(
@@ -336,6 +357,59 @@ fn collect_names(
 
 /// Consume an expression to a balanced-paren boundary, stopping at a top-level
 /// comma or closing paren. Retained as opaque source text — never interpreted.
+/// Read what follows `generated ... as`: either `identity`, with optional
+/// sequence settings, or a parenthesised expression with an optional
+/// `stored` / `virtual` after it.
+fn generated_value(tokens: Tokens) -> #(String, Tokens) {
+  let identity = case tokens {
+    [Positioned(token.Word(w), _, _), ..] -> string.lowercase(w) == "identity"
+    _ -> False
+  }
+  case identity, tokens {
+    True, [_, ..rest] -> #("identity", discard_parens(rest))
+    _, _ -> {
+      let #(expr, rest) = take_parens(tokens)
+      #(expr, skip_words(rest, ["stored", "virtual"]))
+    }
+  }
+}
+
+/// Read a balanced `( ... )` group, returning the text inside it.
+fn take_parens(tokens: Tokens) -> #(String, Tokens) {
+  case tokens {
+    [Positioned(token.LParen, _, _), ..rest] -> {
+      let #(expr, rest) = take_expression(rest, "", 0)
+      case rest {
+        [Positioned(token.RParen, _, _), ..rest] -> #(expr, rest)
+        _ -> #(expr, rest)
+      }
+    }
+    _ -> take_expression(tokens, "", 0)
+  }
+}
+
+fn discard_parens(tokens: Tokens) -> Tokens {
+  case tokens {
+    [Positioned(token.LParen, _, _), ..] -> {
+      let #(_, rest) = take_parens(tokens)
+      rest
+    }
+    _ -> tokens
+  }
+}
+
+/// Drop any of `words` from the front, whatever order they come in.
+fn skip_words(tokens: Tokens, words: List(String)) -> Tokens {
+  case tokens {
+    [Positioned(token.Word(w), _, _), ..rest] ->
+      case list.contains(words, string.lowercase(w)) {
+        True -> skip_words(rest, words)
+        False -> tokens
+      }
+    _ -> tokens
+  }
+}
+
 fn take_expression(
   tokens: Tokens,
   acc: String,
@@ -375,11 +449,89 @@ fn join(acc: String, word: String) -> String {
   }
 }
 
+/// Type names written as several words. Longer names come first so that
+/// `timestamp with time zone` wins over a bare `timestamp`.
+const multi_word_types = [
+  ["timestamp", "with", "time", "zone"],
+  ["timestamp", "without", "time", "zone"],
+  ["time", "with", "time", "zone"],
+  ["time", "without", "time", "zone"],
+  ["character", "varying"],
+  ["bit", "varying"],
+  ["double", "precision"],
+]
+
 fn parse_type(tokens: Tokens) -> Result(#(ast.SqlType, Tokens), Error) {
-  use #(name, pos, rest) <- result.try(identifier(tokens))
+  // A dump can qualify a type with its schema, as in `public.mpaa_rating`.
+  // Only the last part is kept, so it can be looked up by its plain name.
+  use #(_schema, name, pos, rest) <- result.try(qualified_type_name(tokens))
+
+  // `timestamp(6) without time zone` puts the argument in the middle of the
+  // name, so look for arguments both before and after the extra words.
   use #(args, rest) <- result.try(parse_type_args(rest))
+  let #(name, rest) = extend_type_name(name, rest)
+  use #(args, rest) <- result.try(case args {
+    [] -> parse_type_args(rest)
+    _ -> Ok(#(args, rest))
+  })
+
   let #(dims, rest) = parse_array_dims(rest, 0)
   Ok(#(ast.SqlType(name: name, args: args, array_dims: dims, pos: pos), rest))
+}
+
+fn qualified_type_name(
+  tokens: Tokens,
+) -> Result(#(Option(String), String, Int, Tokens), Error) {
+  use #(first, pos, rest) <- result.try(identifier(tokens))
+  case rest {
+    [Positioned(token.Dot, _, _), ..rest] -> {
+      use #(second, _, rest) <- result.try(identifier(rest))
+      Ok(#(Some(first), second, pos, rest))
+    }
+    _ -> Ok(#(None, first, pos, rest))
+  }
+}
+
+/// Pull in the remaining words when a type name is spelled with several.
+fn extend_type_name(name: String, tokens: Tokens) -> #(String, Tokens) {
+  let lowered = string.lowercase(name)
+  let candidates =
+    list.filter(multi_word_types, fn(words) {
+      case words {
+        [first, ..] -> first == lowered
+        [] -> False
+      }
+    })
+  first_matching_name(name, candidates, tokens)
+}
+
+fn first_matching_name(
+  name: String,
+  candidates: List(List(String)),
+  tokens: Tokens,
+) -> #(String, Tokens) {
+  case candidates {
+    [] -> #(name, tokens)
+    [words, ..others] -> {
+      let wanted = list.drop(words, 1)
+      case match_words(wanted, tokens) {
+        Ok(rest) -> #(string.join([name, ..wanted], " "), rest)
+        Error(Nil) -> first_matching_name(name, others, tokens)
+      }
+    }
+  }
+}
+
+fn match_words(words: List(String), tokens: Tokens) -> Result(Tokens, Nil) {
+  case words, tokens {
+    [], _ -> Ok(tokens)
+    [want, ..rest_words], [Positioned(token.Word(w), _, _), ..rest] ->
+      case string.lowercase(w) == want {
+        True -> match_words(rest_words, rest)
+        False -> Error(Nil)
+      }
+    _, _ -> Error(Nil)
+  }
 }
 
 fn parse_type_args(tokens: Tokens) -> Result(#(List(String), Tokens), Error) {

@@ -75,6 +75,29 @@ pub fn parse_type_with_precision_test() {
   assert col.sql_type.args == ["10", "2"]
 }
 
+pub fn parse_character_varying_with_precision_test() {
+  let assert Ok(ast.SchemaAst([table])) =
+    parse("create table t (id character varying(255) not null);")
+  let assert [col] = table.columns
+  assert col.sql_type.name == "character varying"
+  assert col.sql_type.args == ["255"]
+}
+
+pub fn parse_character_varying_without_precision_test() {
+  let assert Ok(ast.SchemaAst([table])) =
+    parse("create table t (bio character varying not null);")
+  let assert [col] = table.columns
+  assert col.sql_type.name == "character varying"
+  assert col.sql_type.args == []
+}
+
+pub fn parse_double_precision_test() {
+  let assert Ok(ast.SchemaAst([table])) =
+    parse("create table t (score double precision not null);")
+  let assert [col] = table.columns
+  assert col.sql_type.name == "double precision"
+}
+
 pub fn parse_array_type_test() {
   let assert Ok(ast.SchemaAst([table])) = parse("create table t (tags text[]);")
   let assert [col] = table.columns

@@ -60,9 +60,11 @@ pub fn unknown_type_is_error_test() {
   assert name == "wombat"
 }
 
+// `txt` is one edit from `text` and further from every other builtin, so the
+// suggestion does not depend on which order the builtins happen to be in.
 pub fn unknown_type_suggests_close_match_test() {
   let assert Error([error.UnknownType(_, _, hint)]) =
-    default_run("create table t (a txet);")
+    default_run("create table t (a txt);")
   assert hint == option.Some("text")
 }
 
@@ -99,6 +101,49 @@ pub fn rename_applies_to_field_only_test() {
   let assert [col] = table.columns
   assert col.field_name == "kind"
   assert col.sql_name == "type"
+}
+
+pub fn bare_rename_applies_to_every_table_test() {
+  let cfg =
+    config.Config(
+      ..config.default(),
+      renames: dict.from_list([#("type", "kind")]),
+    )
+  let assert Ok(r) =
+    run("create table a (type text not null); create table b (type text);", cfg)
+  let assert [table_a, table_b] = r.tables
+  let assert [col_a] = table_a.columns
+  let assert [col_b] = table_b.columns
+  assert col_a.field_name == "kind"
+  assert col_b.field_name == "kind"
+  assert col_a.sql_name == "type"
+}
+
+pub fn qualified_rename_wins_over_bare_rename_test() {
+  let cfg =
+    config.Config(
+      ..config.default(),
+      renames: dict.from_list([#("type", "kind"), #("b.type", "b_kind")]),
+    )
+  let assert Ok(r) =
+    run("create table a (type text not null); create table b (type text);", cfg)
+  let assert [table_a, table_b] = r.tables
+  let assert [col_a] = table_a.columns
+  let assert [col_b] = table_b.columns
+  assert col_a.field_name == "kind"
+  assert col_b.field_name == "b_kind"
+}
+
+pub fn bare_rename_does_not_touch_other_columns_test() {
+  let cfg =
+    config.Config(
+      ..config.default(),
+      renames: dict.from_list([#("type", "kind")]),
+    )
+  let assert Ok(r) = run("create table a (name text not null);", cfg)
+  let assert [table] = r.tables
+  let assert [col] = table.columns
+  assert col.field_name == "name"
 }
 
 pub fn table_naming_override_test() {
