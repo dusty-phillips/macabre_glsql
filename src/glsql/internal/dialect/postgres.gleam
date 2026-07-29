@@ -1,5 +1,5 @@
 import gleam/dict.{type Dict}
-import glsql/mapping.{type TypeMapping, TypeMapping}
+import glsql/internal/mapping.{type TypeMapping, TypeMapping}
 
 pub fn builtin_types() -> Dict(String, TypeMapping) {
   dict.from_list([

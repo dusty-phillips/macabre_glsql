@@ -2,10 +2,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import glsql/ast
-import glsql/error.{type Error, ParseError}
-import glsql/suggest
-import glsql/token.{type Positioned, Positioned}
+import glsql/internal/ast
+import glsql/internal/error.{type Error, ParseError}
+import glsql/internal/suggest
+import glsql/internal/token.{type Positioned, Positioned}
 
 type Tokens =
   List(Positioned)

@@ -1,8 +1,8 @@
 import gleam/list
-import glsql/ast
-import glsql/error
-import glsql/lexer
-import glsql/parser
+import glsql/internal/ast
+import glsql/internal/error
+import glsql/internal/lexer
+import glsql/internal/parser
 
 fn parse_one(sql: String) -> ast.Table {
   let assert Ok(tokens) = lexer.lex(sql)

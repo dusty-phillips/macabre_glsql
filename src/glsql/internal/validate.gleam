@@ -3,9 +3,9 @@ import gleam/list
 import gleam/option.{None}
 import gleam/set
 import gleam/string
-import glsql/ast
-import glsql/config.{type Config}
-import glsql/error.{type Error, ValidationError}
+import glsql/internal/ast
+import glsql/internal/config.{type Config}
+import glsql/internal/error.{type Error, ValidationError}
 
 pub const reserved_words = [
   "as", "assert", "auto", "case", "const", "delegate", "derive", "echo", "else",

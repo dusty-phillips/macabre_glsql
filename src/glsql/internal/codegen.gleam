@@ -1,7 +1,7 @@
 import gleam/int
 import gleam/list
 import gleam/string
-import glsql/resolve.{type ResolvedColumn, type ResolvedTable}
+import glsql/internal/resolve.{type ResolvedColumn, type ResolvedTable}
 
 pub fn generate_table(
   table: ResolvedTable,

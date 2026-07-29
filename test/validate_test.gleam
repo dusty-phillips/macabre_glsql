@@ -1,10 +1,10 @@
 import gleam/dict
 import gleam/list
-import glsql/config
-import glsql/error
-import glsql/lexer
-import glsql/parser
-import glsql/validate
+import glsql/internal/config
+import glsql/internal/error
+import glsql/internal/lexer
+import glsql/internal/parser
+import glsql/internal/validate
 
 fn check(sql: String) -> Result(Nil, List(error.Error)) {
   let assert Ok(tokens) = lexer.lex(sql)

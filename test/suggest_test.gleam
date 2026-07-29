@@ -1,5 +1,5 @@
 import gleam/option.{None, Some}
-import glsql/suggest
+import glsql/internal/suggest
 
 const keywords = ["create", "table", "alter", "index"]
 

@@ -1,6 +1,6 @@
 import gleam/option.{None, Some}
 import gleam/string
-import glsql/error
+import glsql/internal/error
 
 const source = "create table t (\n  a text\n);\n"
 

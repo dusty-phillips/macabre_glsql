@@ -1,5 +1,5 @@
-import glsql/lexer
-import glsql/token.{
+import glsql/internal/lexer
+import glsql/internal/token.{
   type Positioned, Comma, LParen, Number, Positioned, QuotedIdent, RParen,
   Semicolon, StringLit, Word,
 }

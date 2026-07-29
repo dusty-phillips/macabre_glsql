@@ -3,9 +3,9 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import glsql/error.{type Error, ConfigError}
-import glsql/mapping.{type TypeMapping, TypeMapping}
-import glsql/suggest
+import glsql/internal/error.{type Error, ConfigError}
+import glsql/internal/mapping.{type TypeMapping, TypeMapping}
+import glsql/internal/suggest
 import simplifile
 import tom
 

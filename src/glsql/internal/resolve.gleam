@@ -3,12 +3,12 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/result
 import gleam/string
-import glsql/ast
-import glsql/config.{type Config}
-import glsql/dialect/postgres
-import glsql/error.{type Error, UnknownType}
-import glsql/mapping.{type TypeMapping}
-import glsql/suggest
+import glsql/internal/ast
+import glsql/internal/config.{type Config}
+import glsql/internal/dialect/postgres
+import glsql/internal/error.{type Error, UnknownType}
+import glsql/internal/mapping.{type TypeMapping}
+import glsql/internal/suggest
 
 pub type ResolvedSchema {
   ResolvedSchema(tables: List(ResolvedTable))

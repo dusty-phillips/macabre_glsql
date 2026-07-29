@@ -2,13 +2,13 @@ import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
-import glsql/codegen
-import glsql/config
-import glsql/error
-import glsql/lexer
-import glsql/parser
-import glsql/resolve
-import glsql/validate
+import glsql/internal/codegen
+import glsql/internal/config
+import glsql/internal/error
+import glsql/internal/lexer
+import glsql/internal/parser
+import glsql/internal/resolve
+import glsql/internal/validate
 import simplifile
 
 pub fn main() -> Nil {

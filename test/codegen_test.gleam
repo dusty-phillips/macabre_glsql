@@ -1,9 +1,9 @@
 import gleam/string
-import glsql/codegen
-import glsql/config
-import glsql/lexer
-import glsql/parser
-import glsql/resolve
+import glsql/internal/codegen
+import glsql/internal/config
+import glsql/internal/lexer
+import glsql/internal/parser
+import glsql/internal/resolve
 import simplifile
 
 fn generate(sql: String) -> String {

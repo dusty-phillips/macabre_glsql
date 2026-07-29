@@ -1,11 +1,11 @@
 import gleam/dict
 import gleam/option
-import glsql/config
-import glsql/error
-import glsql/lexer
-import glsql/mapping
-import glsql/parser
-import glsql/resolve
+import glsql/internal/config
+import glsql/internal/error
+import glsql/internal/lexer
+import glsql/internal/mapping
+import glsql/internal/parser
+import glsql/internal/resolve
 
 fn run(sql: String, cfg: config.Config) {
   let assert Ok(tokens) = lexer.lex(sql)

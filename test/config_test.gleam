@@ -1,7 +1,7 @@
 import gleam/dict
 import gleam/option.{Some}
-import glsql/config
-import glsql/error
+import glsql/internal/config
+import glsql/internal/error
 
 pub fn parse_minimal_test() {
   let assert Ok(c) = config.parse("schema = \"priv/schema.sql\"\n")

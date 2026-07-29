@@ -2,8 +2,8 @@ import gleam/list
 import gleam/order
 import gleam/result
 import gleam/string
-import glsql/error.{type Error, LexError}
-import glsql/token.{type Positioned, type Token, Positioned}
+import glsql/internal/error.{type Error, LexError}
+import glsql/internal/token.{type Positioned, type Token, Positioned}
 
 pub fn lex(src: String) -> Result(List(Positioned), Error) {
   do_lex(string.to_graphemes(src), 0, [])
