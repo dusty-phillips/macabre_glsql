@@ -2,6 +2,7 @@ name = "glsql"
 version = "1.0.0"
 
 description = "Generate typed Gleam modules from a SQL schema file"
+licences = ["MIT"]
 repository = { type = "github", user = "andbitty", repo = "glsql" }
 
 # For a full reference of all the available options, you can have a look at
