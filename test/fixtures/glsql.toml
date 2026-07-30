@@ -1,5 +1,5 @@
 schema = "test/fixtures/schema.sql"
-out_dir = "test/fixtures/generated"
+out_dir = "build/glsql_e2e/src"
 driver = "pog"
 
 # Overridden with a mapping that needs a module in scope, so the generated

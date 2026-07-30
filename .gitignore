@@ -2,7 +2,5 @@
 *.ez
 /build
 erl_crash.dump
-test/fixtures/generated/
-src/glsql_generated_check.gleam
 # Real schemas fetched to test against, see docs/schema-corpus.md
 test/corpus/
