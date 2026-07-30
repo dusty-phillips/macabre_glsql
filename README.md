@@ -213,10 +213,13 @@ schema = "priv/schema.sql"   # file, defaults to "priv/schema.sql"
 out_dir = "src/db"           # defaults to "src/db"
 driver = "pog"               # defaults to "pog"
 
-# Override or add a type mapping. Built-in Postgres types already cover
-# text, varchar, character varying, int2/4/8, serial, bool, numeric,
-# float4/8, date, time, timestamp, timestamptz, timestamp with/without
-# time zone, uuid, json, jsonb, tsvector, inet, and bytea.
+# Override or add a type mapping. These already have one: text, varchar,
+# character varying, char, citext, uuid, json, jsonb, bytea, tsvector,
+# inet, cidr, macaddr, the integer types (int2, smallint, int4, int,
+# integer, int8, bigint, serial, bigserial, smallserial), bool, boolean,
+# float4, real, float8, double precision, numeric, decimal, date, time,
+# timestamp, timestamptz, and the spellings that write out with time zone
+# or without time zone.
 #
 # `gleam_type` and `decoder` go into the generated file as written, so any
 # module they name has to be listed in `imports`.
@@ -244,9 +247,9 @@ Unknown keys are rejected with a did-you-mean suggestion, so a typo like
 
 ## Types that need a mapping
 
-Some Postgres types have no built-in mapping, because pog has no decoder that
-fits them. Generation stops with an `Unsupported type` error naming the column,
-and the fix is a `[types]` entry:
+Some Postgres types have no built-in mapping, because which Gleam type suits
+them depends on how you want to represent the value. Generation stops with an
+`Unsupported type` error naming the column, and the fix is a `[types]` entry:
 
 - range and multirange types, such as `daterange` and `int8range`
 - `interval`
@@ -292,11 +295,11 @@ as not null even when the column does not say so.
 Tables up to 142 columns work. Wider than that, the generated module does not
 compile.
 
-`decoder()` reads one column per `use` expression, and a chain of more than 142
-of them sits outside what compiles today. The same holds for a chain written by
-hand, so it comes with the shape of the code rather than with anything glsql
-does, and writing the decoder yourself nests just as deeply. `ulimit` and
-`RUST_MIN_STACK` make no difference to where the limit falls.
+`decoder()` reads one column per `use` expression, so a wide table gives a
+deeply nested chain. Past 142 the build stops with a stack overflow. A chain
+written out by hand nests just as deeply and stops at the same width, so writing
+the decoder yourself does not get around it. `ulimit` and `RUST_MIN_STACK` do
+not move where the limit falls.
 
 Splitting the table is the way around it for now.
 
@@ -304,8 +307,8 @@ Splitting the table is the way around it for now.
 
 Generated modules used to import `glsql/schema`, so glsql had to be a normal
 dependency and went into production builds along with the TOML and file reading
-it needs to generate. The `Column` type is now written into `out_dir` instead, as
-`glsql_schema.gleam`.
+it needs to generate. The `Column` type is now written into `out_dir` instead,
+as `glsql_schema.gleam`.
 
 In `gleam.toml`, move the `glsql` line out of `[dependencies]` into
 `[dev-dependencies]` and ask for the new version:
@@ -329,9 +332,12 @@ on an application module importing a dev dependency.
 ## Development
 
 ```sh
-gleam run   # Run the project
 gleam test  # Run the tests
+gleam run   # Regenerate the modules committed under test/generated
 ```
+
+The tests compare what codegen produces against those committed modules, and the
+build type-checks them. So after changing codegen, regenerate and read the diff.
 
 Further documentation can be found at <https://hexdocs.pm/glsql>.
 
