@@ -7,6 +7,31 @@ import glsql/internal/resolve.{type ResolvedColumn, type ResolvedTable}
 /// type. Prefixed so it cannot clash with a table of the same name.
 pub const schema_module = "glsql_schema"
 
+/// What the generated modules put in front of each other's names to import
+/// them. Gleam names a module by its path below `src` or `test`, so everything
+/// up to and including that directory is left out. Taking the last one means an
+/// out_dir written as a longer path, or as an absolute one, still gives a name
+/// the project can import.
+pub fn module_prefix(out_dir: String) -> String {
+  let inner =
+    out_dir
+    |> string.split("/")
+    |> list.fold([], fn(acc, part) {
+      case part {
+        "src" | "test" | "dev" -> []
+        "" -> acc
+        _ -> [part, ..acc]
+      }
+    })
+    |> list.reverse
+    |> string.join("/")
+
+  case inner {
+    "" -> ""
+    _ -> inner <> "/"
+  }
+}
+
 /// The `Column` type the `col_*` accessors return. Generated next to the table
 /// modules rather than imported from glsql, so a project only needs glsql while
 /// generating and not to build what it generated.

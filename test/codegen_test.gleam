@@ -74,3 +74,17 @@ pub fn golden_users_test() {
   let assert Ok(expected) = simplifile.read("test/golden/users.gleam.txt")
   assert out == expected
 }
+
+pub fn module_prefix_test() {
+  assert codegen.module_prefix("src/db") == "db/"
+  assert codegen.module_prefix("test/generated") == "generated/"
+  assert codegen.module_prefix("src") == ""
+  assert codegen.module_prefix("src/db/nested") == "db/nested/"
+}
+
+/// An out_dir given as a longer path still names the module by where it sits
+/// under `src`, not by how it was reached.
+pub fn module_prefix_ignores_the_path_to_src_test() {
+  assert codegen.module_prefix("/home/me/proj/src/db") == "db/"
+  assert codegen.module_prefix("../other/src/db") == "db/"
+}
