@@ -11,7 +11,7 @@ fn generate(sql: String) -> String {
   let assert Ok(schema) = parser.parse(tokens)
   let assert Ok(r) = resolve.resolve(schema, config.default())
   let assert [table] = r.tables
-  codegen.generate_table(table, "pog", "priv/schema.sql")
+  codegen.generate_table(table, "pog", "priv/schema.sql", "db/glsql_schema")
 }
 
 pub fn generates_record_test() {

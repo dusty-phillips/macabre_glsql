@@ -58,15 +58,25 @@ pub fn run(config_path: String) -> Result(Int, String) {
     |> result.map_error(render_all(_, cfg.schema, source)),
   )
 
+  let schema_import = module_prefix(cfg.out_dir) <> codegen.schema_module
+
   // Generate everything in memory first, so a failure never leaves a
   // half-written out_dir.
   let files =
     list.map(resolved.tables, fn(table) {
       #(
         cfg.out_dir <> "/" <> table.module_name <> ".gleam",
-        codegen.generate_table(table, cfg.driver, cfg.schema),
+        codegen.generate_table(table, cfg.driver, cfg.schema, schema_import),
       )
     })
+
+  let files = [
+    #(
+      cfg.out_dir <> "/" <> codegen.schema_module <> ".gleam",
+      codegen.generate_schema_module(cfg.schema),
+    ),
+    ..files
+  ]
 
   use _ <- result.try(
     simplifile.create_directory_all(cfg.out_dir)
@@ -89,7 +99,26 @@ pub fn run(config_path: String) -> Result(Int, String) {
     }),
   )
 
-  Ok(list.length(files))
+  // The count is of tables, since the shared `Column` module is not one.
+  Ok(list.length(resolved.tables))
+}
+
+/// What the generated modules have to put in front of each other's names to
+/// import them. Gleam names a module by its path under `src` or `test`, so that
+/// leading directory is not part of it.
+fn module_prefix(out_dir: String) -> String {
+  let inner = case string.split_once(out_dir, "/") {
+    Ok(#("src", rest)) | Ok(#("test", rest)) | Ok(#("dev", rest)) -> rest
+    _ ->
+      case out_dir {
+        "src" | "test" | "dev" -> ""
+        _ -> out_dir
+      }
+  }
+  case inner {
+    "" -> ""
+    _ -> inner <> "/"
+  }
 }
 
 fn render_all(

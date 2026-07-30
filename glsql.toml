@@ -1,0 +1,17 @@
+# glsql run against its own test schema. The modules it writes are committed
+# under test/generated, so the ordinary build type-checks them and the tests
+# compare what codegen produces now against what is checked in.
+#
+# Refresh them with `gleam run -m glsql` after changing codegen, then read the
+# diff before committing it.
+schema = "test/fixtures/schema.sql"
+out_dir = "test/generated"
+driver = "pog"
+
+# A mapping that names a module, so the committed output only compiles if
+# `imports` reaches the generated import list.
+[types.timestamptz]
+gleam_type = "timestamp.Timestamp"
+decoder = "pog.timestamp_decoder()"
+encoder = "pog.timestamp($)"
+imports = ["gleam/time/timestamp"]

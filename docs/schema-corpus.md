@@ -59,9 +59,10 @@ wide tables and the long column names are where the wrapping rules show up.
 
 ## Checking the output compiles
 
-Point a throwaway project at the generated modules, with `glsql` as a path
-dependency and `pog` plus `gleam_time` as normal ones, then `gleam build`. This
-catches a type mapping that names a Gleam type the project cannot see.
+Point a throwaway project at the generated modules, with `pog` and `gleam_time`
+as dependencies, then `gleam build`. Nothing from glsql is needed, since the
+generated code only imports the driver and whatever a type mapping names. This
+catches a mapping that names a Gleam type the project cannot see.
 
 Leave gitlab's `application_settings` out of that project, or the build dies
 with a segmentation fault. It has 582 columns, which is past the limit in the

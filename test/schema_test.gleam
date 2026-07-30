@@ -1,6 +1,6 @@
+import generated/glsql_schema.{Column}
 import gleam/dynamic
 import gleam/dynamic/decode
-import glsql/schema.{Column}
 
 pub type UserPreview {
   UserPreview(id: String, email: String)
