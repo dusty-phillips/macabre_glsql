@@ -307,11 +307,24 @@ dependency and went into production builds along with the TOML and file reading
 it needs to generate. The `Column` type is now written into `out_dir` instead, as
 `glsql_schema.gleam`.
 
-Regenerate, then move glsql to `dev-dependencies`:
+In `gleam.toml`, move the `glsql` line out of `[dependencies]` into
+`[dev-dependencies]` and ask for the new version:
+
+```toml
+[dev-dependencies]
+glsql = ">= 3.0.0 and < 4.0.0"
+```
+
+Then regenerate, which is what points the import at `out_dir`:
 
 ```sh
 gleam run -m glsql
+gleam build
 ```
+
+Regenerating is not optional. Modules written by 2.x import `glsql/schema`, so
+leaving them as they are and only editing `gleam.toml` gives a build that fails
+on an application module importing a dev dependency.
 
 ## Development
 
