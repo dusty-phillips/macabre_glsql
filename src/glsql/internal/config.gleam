@@ -112,13 +112,14 @@ fn parse_types(
         use gleam_type <- result.try(type_field(parsed, name, "gleam_type"))
         use decoder <- result.try(type_field(parsed, name, "decoder"))
         use encoder <- result.try(type_field(parsed, name, "encoder"))
+        use imports <- result.try(type_imports(parsed, name))
         Ok(#(
           string.lowercase(name),
           TypeMapping(
             gleam_type: gleam_type,
             decoder: decoder,
             encoder: encoder,
-            imports: [],
+            imports: imports,
           ),
         ))
       })
@@ -148,6 +149,28 @@ fn type_field(
         "[types." <> name <> "] must set `" <> field <> "`",
         None,
       ))
+  }
+}
+
+/// Modules the mapping's `gleam_type` and `decoder` need in scope. Optional,
+/// since a mapping built only out of `decode` and the driver needs none.
+fn type_imports(
+  parsed: Dict(String, tom.Toml),
+  name: String,
+) -> Result(List(String), Error) {
+  case tom.get_array(parsed, ["types", name, "imports"]) {
+    Error(_) -> Ok([])
+    Ok(items) ->
+      list.try_map(items, fn(item) {
+        case item {
+          tom.String(m) -> Ok(m)
+          _ ->
+            Error(ConfigError(
+              "[types." <> name <> "] `imports` must be a list of strings",
+              None,
+            ))
+        }
+      })
   }
 }
 

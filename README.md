@@ -27,6 +27,13 @@ warns when a module comes from a package you do not depend on directly:
 gleam add gleam_time
 ```
 
+Starting a `pog` pool also means naming a process and unwrapping what the
+actor returns, so the example below needs these two as well:
+
+```sh
+gleam add gleam_erlang gleam_otp
+```
+
 ## Quick start
 
 Write a schema:
@@ -65,6 +72,7 @@ This writes `src/db/users.gleam`:
 
 import gleam/dynamic/decode
 import gleam/option.{type Option}
+import gleam/time/timestamp
 import glsql/schema.{type Column, Column}
 import pog
 
@@ -74,7 +82,7 @@ pub type Users {
     email: String,
     display_name: Option(String),
     is_admin: Bool,
-    created_at: String,
+    created_at: timestamp.Timestamp,
   )
 }
 
@@ -87,7 +95,7 @@ pub fn decoder() -> decode.Decoder(Users) {
   use email <- decode.field(1, decode.string)
   use display_name <- decode.field(2, decode.optional(decode.string))
   use is_admin <- decode.field(3, decode.bool)
-  use created_at <- decode.field(4, decode.string)
+  use created_at <- decode.field(4, pog.timestamp_decoder())
   decode.success(Users(id:, email:, display_name:, is_admin:, created_at:))
 }
 
@@ -97,35 +105,43 @@ pub fn to_params(row: Users) -> List(pog.Value) {
     pog.text(row.email),
     pog.nullable(fn(v) { pog.text(v) }, row.display_name),
     pog.bool(row.is_admin),
-    pog.text(row.created_at),
+    pog.timestamp(row.created_at),
   ]
 }
 ```
+
+A `col_*()` function is generated for each column too, which the
+[Partial selects](#partial-selects) section below uses.
 
 Use the generated module with `pog` to query the table:
 
 ```gleam
 import db/users
+import gleam/erlang/process
 import gleam/list
 import gleam/option
+import gleam/otp/actor
+import gleam/time/timestamp
 import pog
 
 pub fn main() {
   let config =
-    pog.default_config("main")
+    pog.default_config(process.new_name("pog"))
     |> pog.host("localhost")
     |> pog.database("my_app")
-  let assert Ok(db) = pog.start(config)
+  let assert Ok(actor.Started(data: db, ..)) = pog.start(config)
 
   // Read: the columns constant keeps the SELECT list and the
   // decoder's field order in sync, so this stays correct as the
   // schema evolves.
   let query =
-    pog.query("select " <> users.columns <> " from " <> users.table
-      <> " where email = $1")
+    pog.query(
+      "select " <> users.columns <> " from " <> users.table
+      <> " where email = $1",
+    )
     |> pog.parameter(pog.text("ada@example.com"))
     |> pog.returning(users.decoder())
-  let assert Ok(pog.Returned(_, rows)) = pog.execute(query, db.pool)
+  let assert Ok(pog.Returned(_, rows)) = pog.execute(query, db)
 
   // Write: to_params gives the values in column order, so they
   // line up with the same placeholders.
@@ -135,17 +151,15 @@ pub fn main() {
       email: "grace@example.com",
       display_name: option.Some("Grace"),
       is_admin: False,
-      created_at: "…",
+      created_at: timestamp.system_time(),
     )
   let insert =
     pog.query(
       "insert into " <> users.table <> " (" <> users.columns <> ")"
-        <> " values ($1, $2, $3, $4, $5)",
+      <> " values ($1, $2, $3, $4, $5)",
     )
-    |> list.fold(users.to_params(new_user), _, fn(q, p) {
-      pog.parameter(q, p)
-    })
-  let assert Ok(_) = pog.execute(insert, db.pool)
+    |> list.fold(users.to_params(new_user), _, fn(q, p) { pog.parameter(q, p) })
+  let assert Ok(_) = pog.execute(insert, db)
 
   rows
 }
@@ -199,10 +213,14 @@ driver = "pog"               # defaults to "pog"
 # text, varchar, character varying, int2/4/8, serial, bool, numeric,
 # float4/8, date, time, timestamp, timestamptz, timestamp with/without
 # time zone, uuid, json, jsonb, tsvector, inet, and bytea.
+#
+# `gleam_type` and `decoder` go into the generated file as written, so any
+# module they name has to be listed in `imports`.
 [types.timestamptz]
-gleam_type = "gleam/time/timestamp.Timestamp"
-decoder = "ts.decoder()"
-encoder = "pog.text(ts.to_rfc3339($))"
+gleam_type = "timestamp.Timestamp"
+decoder = "pog.timestamp_decoder()"
+encoder = "pog.timestamp($)"
+imports = ["gleam/time/timestamp"]
 
 # Rename a column whose name collides with a Gleam reserved word. A key with
 # no dot applies to that column in every table, which is usually what you
@@ -246,6 +264,24 @@ Pick whatever Gleam type matches what the driver returns for the column. The
 same applies to a domain or enum you define yourself: map it by its plain name,
 without the schema, so `public.mpaa_rating` is configured as
 `[types.mpaa_rating]`.
+
+A mapping to a type of your own needs the module in `imports`, or the generated
+file will not compile:
+
+```toml
+[types.citext]
+gleam_type = "email.Email"
+decoder = "email.decoder()"
+encoder = "pog.text(email.to_string($))"
+imports = ["my_app/email"]
+```
+
+## Arrays and nullability
+
+An array column becomes a `List` of whatever the element type maps to, and a
+column without `not null` becomes an `Option`. A nullable array is both, so
+`labels text[]` generates `labels: Option(List(String))`. A primary key counts
+as not null even when the column does not say so.
 
 ## Known limits
 

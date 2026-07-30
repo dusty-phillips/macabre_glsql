@@ -18,11 +18,28 @@ pub fn parse_overrides_test() {
 }
 
 pub fn parse_custom_type_test() {
+  // `gleam_type` is written into the generated code as it stands, so it has to
+  // be a name a Gleam file can use, qualified by the module's last segment.
   let toml =
-    "schema = \"s.sql\"\n[types.timestamptz]\ngleam_type = \"gleam/time/timestamp.Timestamp\"\ndecoder = \"ts.decoder()\"\nencoder = \"pog.text(ts.to_rfc3339($))\"\n"
+    "schema = \"s.sql\"\n[types.timestamptz]\ngleam_type = \"timestamp.Timestamp\"\ndecoder = \"pog.timestamp_decoder()\"\nencoder = \"pog.timestamp($)\"\n"
   let assert Ok(c) = config.parse(toml)
   let assert Ok(m) = dict.get(c.types, "timestamptz")
-  assert m.gleam_type == "gleam/time/timestamp.Timestamp"
+  assert m.gleam_type == "timestamp.Timestamp"
+  assert m.imports == []
+}
+
+pub fn parse_custom_type_imports_test() {
+  let toml =
+    "schema = \"s.sql\"\n[types.citext]\ngleam_type = \"custom.Text\"\ndecoder = \"custom.decoder()\"\nencoder = \"pog.text(custom.to_string($))\"\nimports = [\"my_app/custom\"]\n"
+  let assert Ok(c) = config.parse(toml)
+  let assert Ok(m) = dict.get(c.types, "citext")
+  assert m.imports == ["my_app/custom"]
+}
+
+pub fn non_string_import_is_error_test() {
+  let toml =
+    "schema = \"s.sql\"\n[types.citext]\ngleam_type = \"String\"\ndecoder = \"decode.string\"\nencoder = \"pog.text($)\"\nimports = [1]\n"
+  let assert Error(error.ConfigError(_, _)) = config.parse(toml)
 }
 
 pub fn parse_rename_test() {

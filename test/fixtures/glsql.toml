@@ -2,7 +2,10 @@ schema = "test/fixtures/schema.sql"
 out_dir = "test/fixtures/generated"
 driver = "pog"
 
+# Overridden with a mapping that needs a module in scope, so the generated
+# modules only compile if `imports` is carried through to their import list.
 [types.timestamptz]
-gleam_type = "String"
-decoder = "decode.string"
-encoder = "pog.text($)"
+gleam_type = "timestamp.Timestamp"
+decoder = "pog.timestamp_decoder()"
+encoder = "pog.timestamp($)"
+imports = ["gleam/time/timestamp"]
