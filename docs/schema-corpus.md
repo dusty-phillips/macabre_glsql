@@ -65,4 +65,5 @@ catches a type mapping that names a Gleam type the project cannot see.
 
 Leave gitlab's `application_settings` out of that project, or the build dies
 with a segmentation fault. It has 582 columns, which is past the limit in the
-Known limits section of the README.
+Known limits section of the README. See
+[gleam-use-chain-segfault.md](gleam-use-chain-segfault.md) for why.
