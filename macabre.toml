@@ -3,6 +3,10 @@ version = "3.0.0"
 
 [dependencies]
 gleam_stdlib = { git = "git@github.com:dusty-phillips/macabre_stdlib.git", ref = "main" }
+simplifile = { git = "git@github.com:dusty-phillips/macabre_simplifile.git", ref = "main" }
+tom = { git = "git@github.com:dusty-phillips/macabre_tom.git", ref = "main" }
 
 [dev-dependencies]
 gleeunit = { git = "git@github.com:dusty-phillips/macabre_gleeunit.git", ref = "main" }
+pog = ">= 4.1.0 and < 5.0.0"
+gleam_time = { git = "git@github.com:dusty-phillips/macabre_gleam_time.git", ref = "main" }
