@@ -1,0 +1,8 @@
+name = "glsql"
+version = "3.0.0"
+
+[dependencies]
+gleam_stdlib = { git = "git@github.com:dusty-phillips/macabre_stdlib.git", ref = "main" }
+
+[dev-dependencies]
+gleeunit = { git = "git@github.com:dusty-phillips/macabre_gleeunit.git", ref = "main" }
